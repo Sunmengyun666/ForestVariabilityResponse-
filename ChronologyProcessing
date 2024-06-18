@@ -1,0 +1,102 @@
+
+rm(list=ls())
+citation("dplR")
+library(dplR)
+
+# build a function to process raw tree ring date
+func.rwl<-function(filenames,filepath,name){
+  for (i in 1:length(filenames)){
+    data <- read.rwl(filepath[i])
+    corename <- colnames(data)
+    # detrend data with spline
+    data.rwi <- detrend(data,method='Spline',nyrs=50,f=0.5)
+    # build a chronology
+    data.crn <- chron(data.rwi,prefix='HUR',biweigt='TRUE')
+    # filter data with samp.depth>=5
+    data.crn.strip <- subset(data.crn,samp.depth>=5)
+    # filter data after 1901
+    yrs <- rownames(data.crn.strip)
+    data.crn.s.yr <- subset(data.crn.strip,yrs>=1901)
+    # filter the length of period >=30
+    yrs2 <- rownames(data.crn.s.yr)
+    nyrs <- length(yrs2)
+    if (nyrs>=30){
+      # reorganize the name of output file 
+      sitecode <- filenames[i]
+      stringlength <- nchar(sitecode)
+      sitestring <- substring(sitecode,1,stringlength-4)
+      # output
+      write.table(data.crn.s.yr, paste(mainDir1, name, sitestring, ".csv", sep=""), sep=",", col.names=TRUE, row.names= TRUE);
+    }
+  }
+}
+
+# 1. Africa-
+mainDir<-"C:/Project/africa/"
+mainDir1<-"C:/Project/chronologies/"
+setwd(mainDir)
+filenames<-dir(mainDir,pattern = ".rwl")
+filepath<-sapply(filenames,function(x){
+  paste(mainDir,x,sep='')
+})
+
+func.rwl(filenames,filepath,"africa/")
+
+
+# 2. Asia
+mainDir<-"C:/Project/asia/"
+mainDir1<-"C:/Project/chronologies/"
+setwd(mainDir)
+filenames<-dir(mainDir,pattern = ".rwl")
+filepath<-sapply(filenames,function(x){
+  paste(mainDir,x,sep='')
+})
+
+func.rwl(filenames,filepath,"asia/")
+
+
+# 3. europe
+mainDir<-"C:/Project/europe/"
+mainDir1<-"C:/Project/chronologies/"
+setwd(mainDir);
+filenames<-dir(mainDir,pattern = ".rwl")
+filepath<-sapply(filenames,function(x){
+  paste(mainDir,x,sep='')
+})
+
+func.rwl(filenames,filepath,"europe/")
+
+
+# 4. canada
+mainDir<-"C:/Project/canada/"
+mainDir1<-"C:/Project/chronologies/"
+setwd(mainDir);
+filenames<-dir(mainDir,pattern = ".rwl")
+filepath<-sapply(filenames,function(x){
+  paste(mainDir,x,sep='')
+})
+
+func.rwl(filenames,filepath,"canada/")
+
+# 5. usa
+mainDir<-"C:/Project/usa/"
+mainDir1<-"C:/Project/chronologies/"
+setwd(mainDir)
+filenames<-dir(mainDir,pattern = ".rwl")
+filepath<-sapply(filenames,function(x){
+  paste(mainDir,x,sep='')
+})
+
+func.rwl(filenames,filepath,"usa/")
+
+
+# 6. northamerica-mexico
+mainDir<-"C:/Project/mexico/"
+mainDir1<-"C:/Project/chronologies/"
+setwd(mainDir)
+filenames<-dir(mainDir,pattern = ".rwl")
+filepath<-sapply(filenames,function(x){
+  paste(mainDir,x,sep='')
+})
+
+func.rwl(filenames,filepath,"mexico/")
