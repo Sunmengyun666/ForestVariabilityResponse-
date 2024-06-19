@@ -6,9 +6,9 @@ install.packages(gbm)
 ############## BRT #############################
 source("/jane_1390_sm_appendixs/brt.functions.R")
 
-mainDir <-"/noswitch/RWI/"
-mainDir1 <- "/noswitch/data/"
-mainDir2 <- "/noswitch/plot/"
+mainDir <-"/result/RWI/"
+mainDir1 <- "/result/data/"
+mainDir2 <- "/result/plot/"
 
 setwd(mainDir)
 filenames<-dir(mainDir,'*.csv')
