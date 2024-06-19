@@ -1,6 +1,7 @@
 
 rm(list=ls())
 library(dplyr)
+install.packages(gbm)
 
 ############## BRT #############################
 source("/jane_1390_sm_appendixs/brt.functions.R")
@@ -22,7 +23,7 @@ func.sample <- function(i,r){
   
   savename <- substring(filenames[i],1,nchar(filenames[i])-4)  
   
-  # create empty data.frames for relative contribution
+  # create empty data.frames for plotting relative contribution and partial dependent plot
   if  (substr(savename,1,2) == "ew"){
     mycontri <- data.frame(row.names = c('AWC','EM','CH','CEC',
                                          'CV_EP_CWD','CV_EP_SR','CV_EP_TMP','CV_EP_VPD',
@@ -34,7 +35,12 @@ func.sample <- function(i,r){
                                          'CV_LP_CWD', 'CV_LP_SR','CV_LP_TMP','CV_LP_VPD',
                                          'Nm','P50','Pm','RD','SLA','TD'))
   }
-  
+
+  pred_cv <- list(rep(NA,3))
+  n.plots <- nrow(mycontri)
+  pred1 <- list(rep(NA,n.plots))
+  p1 <- list(rep(NA,n.plots))
+
   
   # read my data
   mydt <- read.csv(filepath[i]) %>% 
@@ -68,13 +74,70 @@ func.sample <- function(i,r){
                                by = 'row.names', 
                                all.x=TRUE)[,2])
     
+    pp <- predict.gbm(rwi.tc5.lr005, test.dt, n.trees=rwi.tc5.lr005$gbm.call$best.trees, type="response")
 
+    cor <- cor.test(pp,test.dt$cv,method="pearson")
+
+    ss <- data.frame(R2 = cor[["estimate"]][["cor"]]^2,
+                     p = cor[["p.value"]])
+    if (cor[["p.value"]] < 0.05){
+      ss[1,3] <- 'Y'
+    }
+
+    if (t==1){
+      pred_cv[[1]] <- data.frame(n=pp)
+      pred_cv[[2]] <- data.frame(n=test.dt$cv)
+      pred_cv[[3]] <- ss
+      if (cor[["p.value"]] < 0.05){
+        pred_cv[[3]][t,3] <- 'Y'
+      }
+    }else{
+      pred1[[b]] <- cbind(pred1[[b]],n=resp.matrix[,1])
+      p1[[b]] <- cbind(p1[[b]],n=resp.matrix[,2])
+      pred_cv[[1]] <- cbind(pred_cv[[1]],n=pp)
+      pred_cv[[2]] <- cbind(pred_cv[[2]],n=test.dt$cv)
+      pred_cv[[3]] <- rbind(pred_cv[[3]],ss)
+    }
+
+
+    # PDP
+    pred.names <- rwi.tc5.lr005$gbm.call$predictor.names
+
+    for (b in 1:n.plots){
+      resp.matrix <- plot.gbm(rwi.tc5.lr005, i.var = b,
+                              n.trees = rwi.tc5.lr005$n.trees,
+                              return.grid = TRUE)
+      if (t==1){
+        pred1[[b]] <- data.frame(n=resp.matrix[,1])
+        p1[[b]] <- data.frame(n=resp.matrix[,2])
+      }else{
+        pred1[[b]] <- cbind(pred1[[b]],n=resp.matrix[,1])
+        p1[[b]] <- cbind(p1[[b]],n=resp.matrix[,2])
+      }
+    }
+  }
+
+  # rename
+  names(pred_cv)[1:3] <- c("pred", "cv",'cor')
+
+  for (x in 1:length(pred1)){
+    names(pred1)[x] <- pred.names[x]
+    names(p1)[x] <- pred.names[x]
+  }
+  
   # output data
   write.table(mycontri, paste(mainDir1, savename,'_',region[r], "_contri.csv", sep=""),
               sep=",")
+  # write.xlsx(pred_cv, paste(mainDir1, savename,'_',region[r], "_predcv.xlsx", sep=""),
+  #            row.names=FALSE)
+  # write.xlsx(pred1,paste(mainDir1, savename,'_',region[r], "_pdp_x.xlsx", sep=""))
+  # write.xlsx(p1,paste(mainDir1, savename,'_',region[r], "_pdp_y.xlsx", sep=""))
+
 
   }
-  return(mycontri)
+  mydt <- list(mycontri = mycontri, pred_cv = pred_cv,
+               pred1 = pred1, p1 = p1)
+  return(mydt)
 }
 
 ew_a <- func.sample(1,1)
@@ -87,89 +150,3 @@ lw_h <- func.sample(2,2)
 
 # outout all data
 save.image(paste(mainDir1, "alldt.RData", sep=""))
-
-############## Figure 2 ##############
-mainDir <- "/noswitch/data/"
-mainDir1 <- "/noswitch/plot/"
-
-
-setwd(mainDir)
-filenames<-dir(mainDir,pattern = "*.csv")
-filepath<-sapply(filenames,function(x){
-  paste(mainDir,x,sep='')
-})
-
-my_plot <- function(i){
-  dt <- read.csv(filepath[i],row.names = NULL)
-  colnames(dt)[1] <- 'fac'
-  
-  if (i<3){
-    dt$fac <- factor(dt$fac, 
-                     levels = c('SLA','Pm','Nm',
-                                'VPD_PN_CV','VPD_EP_CV',
-                                'SR_PN_CV','SR_EP_CV',
-                                'CWD_PN_CV','CWD_EP_CV',
-                                'TMP_PN_CV','TMP_EP_CV',
-                                'EM','CEC','AWC','TD',
-                                'CH','RD','P50'
-                     ))
-  }else{
-    dt$fac <- factor(dt$fac, 
-                     levels = c('SLA','Pm','Nm',
-                                'VPD_LP_CV','VPD_EP_CV',
-                                'SR_LP_CV','SR_EP_CV',
-                                'CWD_LP_CV','CWD_EP_CV',
-                                'TMP_LP_CV','TMP_EP_CV',
-                                'EM','CEC','AWC','TD',
-                                'CH','RD','P50'))
-    
-  }
-  
-  dt <- dt[order(dt$fac),]
-  
-  dt$var <- c(rep('leaf',times=3),rep('clim',times=8),
-              rep('site',times=4),rep('hydro',times=3))
-  
-  sum_dt<-reshape2::melt(dt,id.vars=c("fac",'var'),variable.name="times",value.name="rc")
-  
-  
-  p <- ggplot(sum_dt, aes(x = fac, y = rc, fill=var))+
-    geom_violin(width=1,color="white")+
-    geom_boxplot(width=0.2,cex=0.4, position=position_dodge(0.9),outlier.size=1 
-                 # ,notch = T, notchwidth = 0.7
-    )+ 
-    stat_boxplot(geom = 'errorbar',width=0.1,cex=0.4)+
-    ylab('Relative contribution (%)')+xlab('')+
-    # ylim(0, 25)+
-    scale_fill_manual(values = c("#0d898a","#5494cc","#f9cc52","#e18283"))+
-    coord_flip()+
-    theme_bw()+
-    theme(
-      panel.grid.minor = element_blank(),
-      panel.grid.major.y = element_blank(),
-      panel.grid.major.x  = element_line(size=0.5, linetype = 'dashed'),
-      panel.border = element_rect(color="black", size=1),
-      axis.ticks.length.x = unit(0.2, "cm"),
-      axis.ticks.length.y = unit(0.2, "cm"),
-      axis.ticks.x = element_line(color="black",size=1,lineend = 1),
-      axis.ticks.y = element_line(color="black",size=1,lineend = 1),
-      axis.text.x = element_text(size=16,color = "black"),
-      axis.text.y = element_text(size=16,color = "black"),
-      axis.title.x = element_text(size=16),
-      axis.title.y = element_text(size=16),
-      legend.position="none")
-}
-
-my_list <- lapply(1:4, my_plot) 
-
-p <- plot_grid(plotlist = my_list, nrow = 1, ncol = 4,
-               labels = "auto",label_size = 20,
-               scale = c(0.9))
-p
-
-save_plot(paste(mainDir1,'Figure 2 Violin.jpg',sep=""), p,
-          base_height = 10,
-          base_width = 20) 
-save_plot(paste(mainDir1,'Figure 2 Violin.pdf',sep=""), p,
-          base_height = 10,
-          base_width = 20) 
