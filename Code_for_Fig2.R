@@ -3,8 +3,8 @@ library(ggplot2)
 library(plyr)
 library(cowplot)
 
-mainDir <- "/noswitch/data/"
-mainDir1 <- "/noswitch/plot/"
+mainDir <- "/result/data/"
+mainDir1 <- "/result/plot/"
 
 
 setwd(mainDir)
